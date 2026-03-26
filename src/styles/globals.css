@@ -1,0 +1,134 @@
+/* =========================
+   Fonts
+========================= */
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+
+/* =========================
+   Tailwind
+========================= */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================
+   Typography (@layer base)
+========================= */
+@layer base {
+  h1,h2,h3,h4,h5,h6 { @apply font-bold mb-4; color: var(--primary); }
+  h1{@apply text-3xl md:text-4xl;}
+  h2{@apply text-2xl md:text-3xl;}
+  h3{@apply text-xl md:text-2xl;}
+  a{color:var(--accent);text-decoration:none;transition:color .2s ease;}
+  a:hover{color:var(--accent-hover);}
+}
+
+/* =========================
+   Components (@layer components)
+========================= */
+@layer components {
+  /* Buttons */
+  .btn{@apply px-4 py-2 rounded-md font-bold transition-all duration-200;}
+  .btn-primary{
+    @apply relative overflow-hidden px-4 py-2 rounded-lg;
+    background-image:linear-gradient(135deg,var(--primary),var(--accent));
+    color:var(--on-primary);
+    border:none;
+    box-shadow:var(--shadow-soft);
+  }
+  .btn-primary:hover{background-image:linear-gradient(135deg,var(--primary-hover),var(--accent-hover));box-shadow:var(--shadow-hover);}
+  .btn-secondary{
+    @apply px-4 py-2 rounded-lg transition-all;
+    color:var(--on-secondary);
+    background:var(--card2);
+    border:1px solid var(--card-border);
+    backdrop-filter:blur(6px);
+  }
+  .btn-secondary:hover{background:var(--card-hover);box-shadow:var(--shadow-hover);}
+
+  /* Cards */
+  .card{@apply rounded-2xl p-6; background:var(--card);border:1px solid var(--card-border);color:var(--foreground);
+    box-shadow:var(--shadow-soft);transition:all .25s ease;}
+  .card:hover{background:var(--card-hover);box-shadow:var(--shadow-hover);}
+
+  .glass{backdrop-filter:blur(8px);background:var(--card);border:1px solid var(--card-border);color:var(--foreground);box-shadow:var(--shadow-soft);}
+}
+
+/* =========================
+   Pure CSS imports (no @layer/@apply)
+========================= */
+@import './base/variables.css';
+@import './components/navbar.css';
+@import './components/banner.css';
+@import './components/social.css';
+@import './components/palette.css';
+@import './animations.css';
+
+/* =========================
+   Global / Body
+========================= */
+html { color-scheme: dark; background-color: #0B0D1A; }
+body {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(800px 600px at 15% 20%, rgba(124,111,255,0.12), transparent 55%),
+    radial-gradient(900px 650px at 80% 10%, rgba(64,191,255,0.10), transparent 55%),
+    radial-gradient(600px 500px at 50% 80%, rgba(140,80,220,0.08), transparent 50%),
+    linear-gradient(180deg, #0B0D1A 0%, #0E1024 40%, #0A0C18 100%);
+  background-blend-mode: screen, screen, screen, normal;
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-family: 'Nunito', sans-serif;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Prevent background flash/transition on palette switch or dark-mode toggle */
+  transition-property: color, border-color, box-shadow !important;
+}
+
+html:not(.dark) body{
+  background-color:var(--background);
+  background-image:
+    radial-gradient(800px 600px at 15% 20%, rgba(91,79,216,0.07), transparent 55%),
+    radial-gradient(900px 650px at 80% 10%, rgba(41,152,232,0.06), transparent 55%),
+    linear-gradient(180deg,#F0F2FF 0%,#EBEDF8 60%,#E6E8F2 100%);
+  color:var(--foreground);
+}
+
+/* Light button adjustments */
+html:not(.dark) .btn-primary{color:var(--on-primary)!important;}
+html:not(.dark) .btn-secondary{color:var(--on-secondary)!important;}
+
+/* =========================
+   Mobile safe area & performance
+========================= */
+.safe-area-top { padding-top: env(safe-area-inset-top, 0); }
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+
+@media (max-width: 640px) {
+  body {
+    background-image:
+      linear-gradient(180deg, #0B0D1A 0%, #0E1024 100%);
+  }
+  html:not(.dark) body {
+    background-image:
+      linear-gradient(180deg, #F0F2FF 0%, #E6E8F2 100%);
+  }
+}
+
+/* Notification bell shake animation */
+@keyframes bell-shake {
+  0% { transform: rotate(0deg); }
+  15% { transform: rotate(14deg); }
+  30% { transform: rotate(-12deg); }
+  45% { transform: rotate(10deg); }
+  60% { transform: rotate(-8deg); }
+  75% { transform: rotate(4deg); }
+  85% { transform: rotate(-2deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.notification-bell-shake {
+  animation: bell-shake 0.8s ease-in-out infinite;
+  animation-delay: 2s;
+  transform-origin: top center;
+}

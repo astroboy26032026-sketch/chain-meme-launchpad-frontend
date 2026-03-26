@@ -1,0 +1,78 @@
+/* =========================
+   Root Variables – Dark default
+========================= */
+:root {
+  --background: #0B0D1A;
+  --foreground: #E8EAF6;
+
+  --primary: #7C6FFF;
+  --primary-hover: #6558EE;
+  --accent: #40BFFF;
+  --accent-hover: #5ECFFF;
+
+  --on-primary: #FFFFFF;
+  --on-secondary: #E8EAF6;
+
+  --card: #11142A;
+  --card2: #161932;
+  --card-hover: #1C2040;
+  --card-border: #2A2F5A;
+
+  --grid: rgba(255,255,255,0.03);
+
+  --navbar-bg: #0D1020;
+  --navbar-bg-mobile: #0F1224;
+  --navbar-border: rgba(124,111,255,0.35);
+
+  --shadow-soft: 0 6px 24px rgba(124,111,255,0.15);
+  --shadow-hover: 0 10px 32px rgba(64,191,255,0.20);
+
+  --b1: var(--background);
+  --b2: var(--card);
+  --bc: var(--foreground);
+}
+
+/* =========================
+   PALETTES – LIGHT
+========================= */
+html:not(.dark)[data-palette="sprout"], body:not(.dark)[data-palette="sprout"]{
+  --primary:#6BBF59; --primary-hover:#58A64A;
+  --accent:#8FD19E;  --accent-hover:#A3E2B1;
+  --navbar-border: rgba(96,139,104,0.35);
+  --navbar-bg:#F7FBF6;
+}
+html:not(.dark)[data-palette="bud"], body:not(.dark)[data-palette="bud"]{
+  --primary:#7C9A3A; --primary-hover:#6D8932;
+  --accent:#C2D37A;  --accent-hover:#D3E289;
+  --navbar-border: rgba(168,189,102,0.35);
+  --navbar-bg:#F8FBF2;
+}
+html:not(.dark)[data-palette="bloom"], body:not(.dark)[data-palette="bloom"]{
+  --primary:#E07BA5; --primary-hover:#C6658D;
+  --accent:#A1D6C2;  --accent-hover:#8BCAB3;
+  --navbar-border: rgba(224,123,165,0.30);
+  --navbar-bg:#FFF7FB;
+}
+html:not(.dark)[data-palette="canopy"], body:not(.dark)[data-palette="canopy"]{
+  --primary:#2F7A69; --primary-hover:#2A6B5D;
+  --accent:#79C9B5;  --accent-hover:#98D9C8;
+  --navbar-border: rgba(121,201,181,0.30);
+  --navbar-bg:#F4FBFA;
+}
+html.dark[data-palette="galaxy"], body.dark[data-palette="galaxy"]{
+  --primary:#9B8AFF; --primary-hover:#8577EE;
+  --accent:#50D4FF;  --accent-hover:#70E0FF;
+  --navbar-border: rgba(155,138,255,0.45);
+  --navbar-bg:#08091A;
+  --background:#060818;
+  --card:#0D0F24;
+  --card2:#12152E;
+  --card-hover:#181C3A;
+  --card-border:#252A55;
+}
+html:not(.dark)[data-palette="galaxy"], body:not(.dark)[data-palette="galaxy"]{
+  --primary:#5B4FD8; --primary-hover:#4A3FC7;
+  --accent:#2998E8;  --accent-hover:#3AAAF5;
+  --navbar-border: rgba(91,79,216,0.30);
+  --navbar-bg:#F0F2FF;
+}
