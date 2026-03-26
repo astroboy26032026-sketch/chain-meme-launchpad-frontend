@@ -49,8 +49,23 @@ const TokenDetail: React.FC = () => {
   if (!tokenInfo) {
     return (
       <Layout>
-        <div className="flex justify-center items-center min-h-screen">
-          <SpaceLoader variant="overlay" size="large" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">
+            {/* Left skeleton */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="h-6 w-48 bg-[var(--card)] rounded-lg" />
+              <div className="h-[400px] bg-[var(--card)] rounded-2xl border border-[var(--card-border)]" />
+              <div className="h-[300px] bg-[var(--card)] rounded-2xl border border-[var(--card-border)]" />
+            </div>
+            {/* Right skeleton */}
+            <div className="space-y-4">
+              <div className="h-[200px] bg-[var(--card)] rounded-2xl border border-[var(--card-border)]" />
+              <div className="h-[250px] bg-[var(--card)] rounded-2xl border border-[var(--card-border)]" />
+            </div>
+          </div>
+          <div className="flex justify-center mt-8">
+            <SpaceLoader size="medium" label="Loading token data..." />
+          </div>
         </div>
       </Layout>
     );
