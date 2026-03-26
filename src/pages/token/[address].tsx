@@ -1,5 +1,4 @@
-// src/pages/token/[address].tsx — Token detail page (refactored)
-import { GetServerSideProps } from 'next';
+// src/pages/token/[address].tsx — Token detail page (client-side rendered)
 import React from 'react';
 import { Tab } from '@headlessui/react';
 
@@ -20,14 +19,7 @@ import { useTokenDetail } from '@/hooks/useTokenDetail';
 import { COMMON } from '@/constants/ui-text';
 import { useSwapTrading } from '@/hooks/useSwapTrading';
 
-import { getTokenInfo } from '@/utils/api.index';
-import type { Token } from '@/interface/types';
-
-interface TokenDetailProps {
-  initialTokenInfo: Token | null;
-}
-
-const TokenDetail: React.FC<TokenDetailProps> = ({ initialTokenInfo }) => {
+const TokenDetail: React.FC = () => {
   const {
     tokenAddr,
     tokenInfo,
@@ -44,7 +36,7 @@ const TokenDetail: React.FC<TokenDetailProps> = ({ initialTokenInfo }) => {
     refresh,
     fetchLiquidity,
     fetchHolders,
-  } = useTokenDetail(initialTokenInfo);
+  } = useTokenDetail(null);
 
   const swap = useSwapTrading({
     tokenAddr,
@@ -200,19 +192,6 @@ const TokenDetail: React.FC<TokenDetailProps> = ({ initialTokenInfo }) => {
       </div>
     </Layout>
   );
-};
-
-// SSR
-export const getServerSideProps: GetServerSideProps = async (context) => {
-  const { address } = context.params as { address: string };
-
-  try {
-    const info = await getTokenInfo(address);
-    return { props: { initialTokenInfo: (info as any) ?? null } };
-  } catch (e) {
-    console.error('SSR getTokenInfo failed:', e);
-    return { props: { initialTokenInfo: null } };
-  }
 };
 
 export default TokenDetail;
