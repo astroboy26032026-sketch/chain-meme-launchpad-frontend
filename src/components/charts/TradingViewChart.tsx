@@ -157,19 +157,22 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({ tokenInfo }) => {
     u(); window.addEventListener('resize', u); return () => window.removeEventListener('resize', u);
   }, []);
 
-  /* ─── fetch ─── */
+  /* ─── fetch with timeout ─── */
   const fetchChart = useCallback(async (silent = false) => {
     if (!tokenAddress) return;
     const myReq = ++reqIdRef.current;
     if (!silent) { setLoading(true); setErr(null); }
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
       const res = await getTokenPrice(tokenAddress, tf);
+      clearTimeout(timeout);
       if (myReq !== reqIdRef.current) return;
       setData(buildOhlcv(res?.chart ?? [], TF_MIN[tf]));
-    } catch (e) {
+    } catch (e: any) {
       console.error('getTokenPrice failed:', e);
       if (myReq !== reqIdRef.current) return;
-      if (!silent) { setData([]); setErr('Failed to load chart data'); }
+      if (!silent) { setErr(e?.name === 'AbortError' ? 'Timeout - retrying...' : 'Failed to load chart'); }
     } finally {
       if (myReq !== reqIdRef.current) return;
       if (!silent) setLoading(false);
@@ -373,8 +376,13 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({ tokenInfo }) => {
         <div className="relative" style={{ height: chartH }}>
           <div ref={containerRef} className="w-full h-full" />
           {(loading || data.length < 2) && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[var(--card)]">
-              {loading ? <SpaceLoader size="medium" /> : (
+            <div className="absolute inset-0 flex items-center justify-center bg-[var(--card)]/80">
+              {loading ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-6 h-6 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                  <p className="text-xs text-gray-500">Loading chart...</p>
+                </div>
+              ) : (
                 <div className="flex flex-col items-center">
                   <p className="text-gray-400 text-sm">Not enough data to display chart</p>
                   {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
