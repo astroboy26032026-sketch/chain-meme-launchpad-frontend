@@ -24,7 +24,8 @@ https://chain-meme-launchpad-frontend.vercel.app/
 ![Promote](docs/screenshots/fuel.png)
 
 ### Create Token
-![Promote](docs/screenshots/create-token.png)(docs/screenshots/create-token-2.png)
+![Create Token](docs/screenshots/create-token.png)
+![Create Token](docs/screenshots/create-token-2.png)
 
 ## Overview
 
