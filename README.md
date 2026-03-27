@@ -5,6 +5,27 @@
 ## Demo
 https://chain-meme-launchpad-frontend.vercel.app/
 
+### Home Page
+![Home Page](docs/screenshots/home-page.png)
+
+### Trading
+![Trading](docs/screenshots/trading-token.png)
+
+### Candy Reward
+![Candy Reward](docs/screenshots/promote.png)
+
+### Sweet Points
+![Sweet Points](docs/screenshots/rewards.png)
+
+### Referrals
+![Referrals](docs/screenshots/stake.png)
+
+### Promote
+![Promote](docs/screenshots/fuel.png)
+
+### Create Token
+![Promote](docs/screenshots/create-token.png)(docs/screenshots/create-token-2.png)
+
 ## Overview
 
 CosmoX is a **Solana-based token launchpad** (similar to Pump.fun), designed as a complete production-ready web application. The platform enables users to:
