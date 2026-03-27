@@ -1,12 +1,12 @@
 // src/components/TokenDetails/Chats.tsx
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { getChatMessages, addChatMessage } from '@/utils/api.index';
 import { toastError } from '@/utils/customToast';
 import { formatTimestamp, getRandomAvatarImage, shortenAddress } from '@/utils/chatUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { TokenWithTransactions, ChatMessage as BeChatMessage } from '@/interface/types';
-import { Reply, X } from 'lucide-react';
+import { Reply, X, Send, MessageSquare } from 'lucide-react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { COMMON, CHAT } from '@/constants/ui-text';
@@ -25,7 +25,6 @@ interface ChatsProps {
 
 const PAGE_LIMIT = 30;
 
-/** Strip HTML tags to prevent XSS from API responses */
 const stripHtml = (str: string) => str.replace(/<[^>]*>/g, '');
 
 const toUiMessage = (m: BeChatMessage): UiChatMessage => ({
@@ -35,24 +34,18 @@ const toUiMessage = (m: BeChatMessage): UiChatMessage => ({
   timestamp: m.timestamp,
 });
 
-/**
- * Token chat UI (Solana-only)
- * - GET /chat/messages => cursor pagination
- * - POST /chat/write   => requires Bearer token (AuthProvider)
- *
- * NOTE: API mới không có reply_to => reply UI sẽ quote message vào text.
- */
 const Chats: React.FC<ChatsProps> = ({ tokenAddress, tokenInfo }) => {
   const { publicKey, connected } = useWallet();
   const { loading, authenticated } = useAuth();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const walletAddress = useMemo(() => publicKey?.toBase58() || '', [publicKey]);
 
   const [messages, setMessages] = useState<UiChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [replyingTo, setReplyingTo] = useState<UiChatMessage | null>(null);
+  const [sending, setSending] = useState(false);
 
-  // cursor pagination
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -60,8 +53,7 @@ const Chats: React.FC<ChatsProps> = ({ tokenAddress, tokenInfo }) => {
   const userAvatars = useMemo(() => {
     const avatars: Record<string, string> = {};
     messages.forEach((msg) => {
-      const k = msg.walletAddress;
-      if (!avatars[k]) avatars[k] = getRandomAvatarImage();
+      if (!avatars[msg.walletAddress]) avatars[msg.walletAddress] = getRandomAvatarImage();
     });
     return avatars;
   }, [messages]);
@@ -69,7 +61,6 @@ const Chats: React.FC<ChatsProps> = ({ tokenAddress, tokenInfo }) => {
   const fetchMessages = useCallback(
     async (isLoadMore = false) => {
       if (!tokenAddress) return;
-
       try {
         if (isLoadMore) setLoadingMore(true);
 
@@ -79,47 +70,42 @@ const Chats: React.FC<ChatsProps> = ({ tokenAddress, tokenInfo }) => {
         });
 
         const ui = (res?.messages ?? []).map(toUiMessage);
-
         setMessages((prev) => (isLoadMore ? [...prev, ...ui] : ui));
         setCursor(res?.nextCursor ?? null);
         setHasMore(Boolean(res?.nextCursor));
       } catch (error: any) {
         console.error('Error fetching messages:', error);
-        toastError(error?.message || 'Failed to load chat');
+        if (!isLoadMore) toastError(error?.message || 'Failed to load chat');
         setHasMore(false);
       } finally {
         if (isLoadMore) setLoadingMore(false);
       }
     },
-    [tokenAddress, cursor]
+    [tokenAddress, cursor],
   );
 
-  // reset + initial load when token changes
   useEffect(() => {
     setMessages([]);
     setCursor(null);
     setHasMore(true);
     setReplyingTo(null);
     setNewMessage('');
-
     fetchMessages(false);
 
     const interval = setInterval(() => {
       if (!document.hidden) fetchMessages(false);
-    }, 30000);
+    }, 30_000);
     return () => clearInterval(interval);
   }, [tokenAddress, fetchMessages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (loading) return;
+    if (loading || sending) return;
 
     if (!connected || !walletAddress) {
       toastError('Connect Solana wallet to chat');
       return;
     }
-
     if (!authenticated) {
       toastError('Please authenticate to chat');
       return;
@@ -128,11 +114,11 @@ const Chats: React.FC<ChatsProps> = ({ tokenAddress, tokenInfo }) => {
     const raw = newMessage.trim();
     if (!raw) return;
 
-    // Reply: API mới không có reply_to => quote vào body
     const finalMessage = replyingTo
       ? `↪ Reply to ${shortenAddress(replyingTo.walletAddress)}: "${replyingTo.message.slice(0, 120)}"\n${raw}`
       : raw;
 
+    setSending(true);
     try {
       const posted = await addChatMessage({
         tokenAddress,
@@ -140,17 +126,15 @@ const Chats: React.FC<ChatsProps> = ({ tokenAddress, tokenInfo }) => {
         message: finalMessage,
       });
 
-      // optimistic prepend
       setMessages((prev) => [toUiMessage(posted as any), ...prev]);
-
       setNewMessage('');
       setReplyingTo(null);
-
-      // refresh first page to keep consistent ordering
       fetchMessages(false);
     } catch (error: any) {
       console.error('Error sending message:', error);
       toastError(error?.message || 'Failed to send message');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -159,114 +143,159 @@ const Chats: React.FC<ChatsProps> = ({ tokenAddress, tokenInfo }) => {
       const c = String((tokenInfo as any)?.creatorAddress || '').toLowerCase();
       return c && String(wa || '').toLowerCase() === c;
     },
-    [tokenInfo]
+    [tokenInfo],
   );
 
-  // Auth gating UI (no SiweAuth)
+  /* ── Auth gate ── */
   if (!connected || !walletAddress) {
     return (
-      <div className="flex flex-col items-center justify-center p-4 text-sm text-gray-400">
-        Connect your Solana wallet to view & send chat messages.
+      <div className="flex flex-col items-center justify-center py-12 gap-3">
+        <MessageSquare size={32} className="text-gray-600" />
+        <p className="text-sm text-gray-500">Connect your Solana wallet to chat</p>
       </div>
     );
   }
 
   if (!authenticated) {
     return (
-      <div className="flex flex-col items-center justify-center p-4 text-sm text-gray-400">
-        Please Connect Wallet
+      <div className="flex flex-col items-center justify-center py-12 gap-3">
+        <MessageSquare size={32} className="text-gray-600" />
+        <p className="text-sm text-gray-500">Please authenticate to chat</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-[400px] sm:h-[500px]">
-      <div className="flex-grow overflow-y-auto custom-scrollbar space-y-2 sm:space-y-4 p-2">
-        <AnimatePresence>
-          {messages.map((message) => (
-            <motion.div
-              key={message.messageId}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="bg-[var(--card2)] rounded-lg p-2 sm:p-3 border-thin"
-            >
-              <div className="flex items-start gap-1.5 sm:gap-2">
-                <Image
-                  src={userAvatars[message.walletAddress] || getRandomAvatarImage()}
-                  alt="Avatar"
-                  width={20}
-                  height={20}
-                  className="rounded-full hidden sm:block"
-                />
-                <div className="flex-grow min-w-0">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs sm:text-sm font-medium text-gray-300">
-                      {shortenAddress(message.walletAddress)}
-                      {isDev(message.walletAddress) && (
-                        <span className="ml-1 text-[var(--primary)] text-[10px] sm:text-xs">(dev)</span>
-                      )}
-                    </span>
-                    <span className="text-[10px] sm:text-xs text-gray-500">{formatTimestamp(message.timestamp)}</span>
+    <div className="flex flex-col h-[400px] sm:h-[480px]">
+
+      {/* ── Messages ── */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 px-1 py-2">
+        <AnimatePresence initial={false}>
+          {messages.map((message) => {
+            const isOwn = message.walletAddress === walletAddress;
+            return (
+              <motion.div
+                key={message.messageId}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className={`rounded-xl p-2.5 sm:p-3 border border-[var(--card-border)] ${
+                  isOwn ? 'bg-[var(--primary)]/5' : 'bg-[var(--card2)]'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <Image
+                    src={userAvatars[message.walletAddress] || getRandomAvatarImage()}
+                    alt="Avatar"
+                    width={24}
+                    height={24}
+                    className="rounded-full flex-shrink-0 hidden sm:block"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs font-medium text-gray-300 font-mono truncate">
+                          {shortenAddress(message.walletAddress)}
+                        </span>
+                        {isDev(message.walletAddress) && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[var(--primary)]/10 text-[var(--primary)]">
+                            DEV
+                          </span>
+                        )}
+                        {isOwn && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[var(--accent)]/10 text-[var(--accent)]">
+                            YOU
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-gray-600 flex-shrink-0">
+                        {formatTimestamp(message.timestamp)}
+                      </span>
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-gray-200 mt-1 whitespace-pre-wrap break-words leading-relaxed">
+                      {message.message}
+                    </p>
+
+                    <button
+                      onClick={() => setReplyingTo(message)}
+                      className="mt-1.5 text-[10px] text-gray-500 hover:text-[var(--primary)] flex items-center gap-1 transition-colors"
+                    >
+                      <Reply size={10} />
+                      Reply
+                    </button>
                   </div>
-
-                  <p className="text-xs sm:text-sm text-gray-200 mt-0.5 sm:mt-1 whitespace-pre-wrap break-words">
-                    {message.message}
-                  </p>
-
-                  <button
-                    onClick={() => setReplyingTo(message)}
-                    className="mt-1 sm:mt-2 text-[10px] sm:text-xs text-gray-400 hover:text-[var(--primary)] flex items-center gap-0.5 sm:gap-1"
-                  >
-                    <Reply size={10} className="sm:w-3 sm:h-3" />
-                    Reply
-                  </button>
                 </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
 
-        {messages.length === 0 && <div className="text-xs text-gray-400 p-2">No messages yet</div>}
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8 gap-2">
+            <MessageSquare size={24} className="text-gray-600" />
+            <p className="text-xs text-gray-500">No messages yet — start the conversation!</p>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
 
-      {hasMore && (
-        <div className="px-2">
+      {/* Load more */}
+      {hasMore && messages.length > 0 && (
+        <div className="px-1 py-2">
           <button
             type="button"
             onClick={() => fetchMessages(true)}
             disabled={loadingMore}
-            className="w-full px-5 py-3 rounded-xl border border-[var(--card-border)] bg-[var(--card)] hover:shadow text-sm disabled:opacity-50"
+            className="w-full py-2 rounded-lg text-xs text-gray-400 border border-[var(--card-border)] bg-[var(--card)] hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50"
           >
             {loadingMore ? COMMON.LOADING : COMMON.LOAD_MORE}
           </button>
         </div>
       )}
 
-      <form onSubmit={handleSendMessage} className="mt-2 sm:mt-4 space-y-1 sm:space-y-2 p-2">
-        {replyingTo && (
-          <div className="flex items-center justify-between bg-[var(--card)] p-1.5 sm:p-2 rounded-lg text-xs sm:text-sm border-thin">
-            <span className="text-gray-400">
-              Replying to <span className="text-[var(--primary)]">{shortenAddress(replyingTo.walletAddress)}</span>
+      {/* ── Reply indicator ── */}
+      {replyingTo && (
+        <div className="mx-1 mb-1 flex items-center justify-between bg-[var(--card2)] px-3 py-2 rounded-lg border border-[var(--card-border)]">
+          <span className="text-xs text-gray-400 truncate">
+            Replying to{' '}
+            <span className="text-[var(--primary)] font-medium">
+              {shortenAddress(replyingTo.walletAddress)}
             </span>
-            <button type="button" onClick={() => setReplyingTo(null)} className="text-gray-400 hover:text-white">
-              <X size={14} className="sm:w-4 sm:h-4" />
-            </button>
-          </div>
-        )}
-
-        <div className="flex gap-1.5 sm:gap-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder={CHAT.PLACEHOLDER}
-            className="flex-grow bg-[var(--card2)] text-white rounded-lg px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)] border-thin"
-          />
-          <button type="submit" disabled={!newMessage.trim() || loading} className="btn btn-primary text-xs sm:text-sm disabled:opacity-50">
-            Send
+          </span>
+          <button
+            type="button"
+            onClick={() => setReplyingTo(null)}
+            className="text-gray-500 hover:text-white transition-colors ml-2 flex-shrink-0"
+          >
+            <X size={14} />
           </button>
         </div>
+      )}
+
+      {/* ── Input ── */}
+      <form onSubmit={handleSendMessage} className="flex gap-2 px-1 pt-2 pb-1">
+        <input
+          type="text"
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          placeholder={CHAT.PLACEHOLDER}
+          className="flex-1 bg-[var(--card2)] text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)] border border-[var(--card-border)] placeholder-gray-600"
+        />
+        <button
+          type="submit"
+          disabled={!newMessage.trim() || loading || sending}
+          className="px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40 transition-all"
+          style={{ background: 'linear-gradient(135deg, var(--primary), var(--accent))', color: '#fff' }}
+        >
+          {sending ? (
+            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />
+          ) : (
+            <Send size={16} />
+          )}
+        </button>
       </form>
     </div>
   );

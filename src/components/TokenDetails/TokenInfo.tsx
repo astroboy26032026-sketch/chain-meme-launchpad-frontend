@@ -1,77 +1,34 @@
 // src/components/TokenDetails/TokenInfo.tsx
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  ExternalLinkIcon,
+  ExternalLink,
   Copy,
   Globe,
   Twitter,
   Send as Telegram,
   Youtube,
   MessageCircle as Discord,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import Image from 'next/image';
 import { toastSuccess, toastError } from '@/utils/customToast';
-
-import Link from 'next/link';
 import { formatTimestamp, shortenAddress, formatAddressV2 } from '@/utils/blockchainUtils';
 import type { Token } from '@/interface/types';
 
-// =====================
-// Types
-// =====================
+/* ── Types ── */
 interface TokenInfoProps {
-  tokenInfo: Token & {
-    // compat fields (nếu BE trả khác)
-    creatorAddress?: string;
-    website?: string;
-    twitter?: string;
-    telegram?: string;
-    discord?: string;
-    youtube?: string;
-    logo?: string;
-    createdAt?: string | number;
-    description?: string;
-    symbol?: string;
-    name?: string;
-
-    // address compat
-    address?: string;
-    tokenAddress?: string;
-    mint?: string;
-
-    // optional: nếu BE có trả current price (base coin)
-    price?: number | string;
-    currentPrice?: number | string;
-    priceUsd?: number | string;
-
-    // extra stats
-    marketCap?: number;
-    mcapUsd?: number;
-    marketcapUsd?: number;
-    marketCapUsd?: number;
-    volume24h?: number;
-    vol24h?: number;
-    vol24hUsd?: number;
-    volume24hUsd?: number;
-    holders?: number;
-    holderCount?: number;
-    liquidity?: number;
-    totalSupply?: number | string;
-    supply?: number | string;
-    progressDex?: number;
-  };
+  tokenInfo: Token & Record<string, any>;
   showHeader?: boolean;
   refreshTrigger?: number;
-  liquidityEvents?: any; // [] | {events: []} | {liquidityEvents: []} | null
+  liquidityEvents?: any;
 }
 
+/* ── Helpers ── */
 const fmtNum = (n: number, digits = 4) => {
   const v = Number(n);
   if (!Number.isFinite(v)) return '0';
-  return v.toLocaleString(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: digits,
-  });
+  return v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: digits });
 };
 
 const ensureHttp = (url?: string) => {
@@ -82,273 +39,220 @@ const ensureHttp = (url?: string) => {
   return `https://${s}`;
 };
 
-const getTokenAddressAny = (t: any) =>
+const getAddr = (t: any): string =>
   String(t?.address ?? t?.tokenAddress ?? t?.mint ?? t?.token ?? '').trim();
 
-// Bạn có thể đổi sang explorer khác nếu muốn
-const explorerAddressUrl = (addr: string) => `https://solscan.io/account/${addr}`;
-
-const TokenInfo: React.FC<TokenInfoProps> = ({
-  tokenInfo,
-  showHeader = false,
-  refreshTrigger = 0,
-}) => {
-  // giữ state để UI/UX không đổi (nếu nơi khác đang set refreshTrigger)
-  useEffect(() => {
-    // nothing required — liquidityEvents / tokenInfo sẽ tự update từ parent
-  }, [refreshTrigger]);
-
-  const progressPct = useMemo(() => {
-    // Only use progressDex from API — no guessing
-    const apiProg = Number(tokenInfo?.progressDex ?? 0);
-    if (Number.isFinite(apiProg) && apiProg > 0) return Math.min(apiProg, 100);
-    return 0;
-  }, [tokenInfo?.progressDex]);
-
-  const truncateDescription = (description: string, maxLength: number = 120) => {
-    if (!description) return '';
-    if (description.length <= maxLength) return description;
-    return `${description.slice(0, maxLength)}...`;
-  };
-
-  // market stats — try multiple field names
-  const marketCapValue = Number(tokenInfo?.marketCap ?? tokenInfo?.mcapUsd ?? tokenInfo?.marketcapUsd ?? tokenInfo?.marketCapUsd ?? 0) || 0;
-  const holdersValue = Number(tokenInfo?.holders ?? tokenInfo?.holderCount ?? 0) || 0;
-
-
-  const addr = useMemo(() => getTokenAddressAny(tokenInfo), [tokenInfo]);
-  const logo = tokenInfo?.logo || '/chats/noimg.svg';
-  const name = tokenInfo?.name || tokenInfo?.symbol || 'Token';
-
-  const socials = useMemo(
-    () => ({
-      website: ensureHttp(tokenInfo?.website),
-      twitter: ensureHttp(tokenInfo?.twitter),
-      telegram: ensureHttp(tokenInfo?.telegram),
-      discord: ensureHttp(tokenInfo?.discord),
-      youtube: ensureHttp(tokenInfo?.youtube),
-    }),
-    [tokenInfo?.website, tokenInfo?.twitter, tokenInfo?.telegram, tokenInfo?.discord, tokenInfo?.youtube]
-  );
-
-  const TokenDetails = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <InfoItem
-          label="Contract"
-          value={addr ? formatAddressV2(addr) : '—'}
-          link={addr ? explorerAddressUrl(addr) : undefined}
-          isExternal={true}
-          copyValue={addr || undefined}
-        />
-        <InfoItem
-          label="Deployer"
-          value={tokenInfo?.creatorAddress ? shortenAddress(tokenInfo.creatorAddress) : '—'}
-          link={tokenInfo?.creatorAddress ? explorerAddressUrl(tokenInfo.creatorAddress) : undefined}
-          isExternal={true}
-          copyValue={tokenInfo?.creatorAddress}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <InfoItem
-          label="Created"
-          value={tokenInfo?.createdAt ? formatTimestamp(tokenInfo.createdAt as any) : '—'}
-        />
-        <InfoItem
-          label="Market Cap"
-          value={marketCapValue > 0 ? `$${fmtNum(marketCapValue, 2)}` : '—'}
-        />
-      </div>
-
-      {/* Liquidity & Supply removed */}
-
-    </div>
-  );
-
-  if (showHeader) {
-    return (
-      <div className="space-y-6">
-        {/* Mobile Header */}
-        <div className="lg:hidden flex flex-col">
-          <div className="w-full h-[200px] mb-4 bg-[var(--card2)] rounded-b-xl overflow-hidden relative">
-            <Image src={logo} alt={name} fill className="object-cover" sizes="100vw" priority={false} />
-          </div>
-
-          <div className="px-4">
-            <div className="text-center mb-3">
-              <h1 className="text-2xl font-bold text-white">{name}</h1>
-              {tokenInfo?.symbol && <p className="text-xs text-gray-400 mt-1">{tokenInfo.symbol}</p>}
-            </div>
-
-            <p className="text-sm text-gray-400 text-center mb-4">
-              {truncateDescription(tokenInfo?.description || '')}
-            </p>
-
-            <div className="flex justify-center gap-4 mb-6">
-              {socials.website && (
-                <a href={socials.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[var(--primary)] transition-colors">
-                  <Globe size={24} />
-                </a>
-              )}
-              {socials.twitter && (
-                <a href={socials.twitter} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[var(--primary)] transition-colors">
-                  <Twitter size={24} />
-                </a>
-              )}
-              {socials.telegram && (
-                <a href={socials.telegram} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[var(--primary)] transition-colors">
-                  <Telegram size={24} />
-                </a>
-              )}
-              {socials.discord && (
-                <a href={socials.discord} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[var(--primary)] transition-colors">
-                  <Discord size={24} />
-                </a>
-              )}
-              {socials.youtube && (
-                <a href={socials.youtube} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[var(--primary)] transition-colors">
-                  <Youtube size={24} />
-                </a>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Desktop Header */}
-        <div className="hidden lg:block">
-          <div className="flex items-start gap-4">
-            <div className="relative w-24 h-24">
-              <Image src={logo} alt={name} fill className="rounded-lg object-cover" sizes="96px" />
-            </div>
-
-            <div className="flex-1">
-              <div className="flex items-start gap-2">
-                <div>
-                  <h1 className="text-xl font-bold text-white">{name}</h1>
-                  {tokenInfo?.symbol && <p className="text-xs text-gray-400 mt-1">{tokenInfo.symbol}</p>}
-                </div>
-              </div>
-
-              <p className="text-sm text-gray-400 mt-2">{truncateDescription(tokenInfo?.description || '')}</p>
-
-              <div className="flex gap-3 mt-4">
-                {socials.website && (
-                  <a href={socials.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[var(--primary)]">
-                    <Globe size={20} />
-                  </a>
-                )}
-                {socials.twitter && (
-                  <a href={socials.twitter} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[var(--primary)]">
-                    <Twitter size={20} />
-                  </a>
-                )}
-                {socials.telegram && (
-                  <a href={socials.telegram} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[var(--primary)]">
-                    <Telegram size={20} />
-                  </a>
-                )}
-                {socials.discord && (
-                  <a href={socials.discord} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[var(--primary)]">
-                    <Discord size={20} />
-                  </a>
-                )}
-                {socials.youtube && (
-                  <a href={socials.youtube} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[var(--primary)]">
-                    <Youtube size={20} />
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Progress to DEX — always show, 0% if no data, progress bar only when > 0 */}
-        <div className="bg-[var(--card2)] p-4 rounded-lg border-thin">
-          <div className="flex justify-between text-sm mb-2">
-            <span className="text-gray-300 font-medium">Progress to DEX</span>
-            <span className="text-white">
-              {progressPct % 1 === 0 ? `${progressPct}%` : `${progressPct.toFixed(2)}%`}
-            </span>
-          </div>
-          {progressPct > 0 && (
-            <div className="w-full bg-[var(--card-boarder)] rounded-full h-2.5 overflow-hidden">
-              <div
-                className="bg-[var(--primary)] h-2.5 rounded-full transition-all duration-500"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-          )}
-        </div>
-
-        <TokenDetails />
-      </div>
-    );
-  }
-
-  return <TokenDetails />;
-};
-
-const InfoItem: React.FC<{
-  label: string;
-  value?: string;
-  link?: string;
-  isExternal?: boolean;
-  copyValue?: string;
-}> = ({ label, value, link, isExternal, copyValue }) => (
-  <div className="bg-[var(--card2)] p-3 rounded-lg border-thin">
-    <div className="text-xs text-gray-400 mb-1">{label}</div>
-    <div className="text-sm text-white flex items-center gap-2">
-      {link ? (
-        <div className="flex items-center gap-2 flex-grow">
-          <a
-            href={link}
-            target={isExternal ? '_blank' : undefined}
-            rel={isExternal ? 'noopener noreferrer' : undefined}
-            className="hover:text-[var(--primary)] transition-colors flex items-center gap-1"
-          >
-            {value}
-            {isExternal && <ExternalLinkIcon size={12} />}
-          </a>
-
-          {copyValue && (
-            <button
-              onClick={() => copyToClipboard(copyValue)}
-              className="text-gray-400 hover:text-[var(--primary)] transition-colors"
-              title="Copy"
-              type="button"
-            >
-              <Copy size={12} />
-            </button>
-          )}
-        </div>
-      ) : (
-        <span>{value}</span>
-      )}
-    </div>
-  </div>
-);
+const explorerUrl = (addr: string) => `https://solscan.io/account/${addr}`;
 
 const copyToClipboard = async (text: string) => {
   try {
     if (navigator?.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
     } else {
-      // fallback
       const ta = document.createElement('textarea');
       ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
+      ta.style.cssText = 'position:fixed;opacity:0';
       document.body.appendChild(ta);
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
     }
-
     toastSuccess('Copied!');
   } catch {
     toastError('Copy failed');
   }
 };
+
+/* ── Social icons config ── */
+const SOCIALS = [
+  { key: 'website', Icon: Globe },
+  { key: 'twitter', Icon: Twitter },
+  { key: 'telegram', Icon: Telegram },
+  { key: 'discord', Icon: Discord },
+  { key: 'youtube', Icon: Youtube },
+] as const;
+
+/* ══════════════════════════════════════════
+   Main Component
+   ══════════════════════════════════════════ */
+const TokenInfo: React.FC<TokenInfoProps> = ({ tokenInfo, showHeader = false }) => {
+  const [showFullDesc, setShowFullDesc] = useState(false);
+
+  const addr = useMemo(() => getAddr(tokenInfo), [tokenInfo]);
+  const logo = tokenInfo?.logo || '/chats/noimg.svg';
+  const name = tokenInfo?.name || tokenInfo?.symbol || 'Token';
+  const description = tokenInfo?.description || '';
+  const needsTruncation = description.length > 120;
+
+  const progressPct = useMemo(() => {
+    const v = Number(tokenInfo?.progressDex ?? 0);
+    return Number.isFinite(v) && v > 0 ? Math.min(v, 100) : 0;
+  }, [tokenInfo?.progressDex]);
+
+  const marketCap =
+    Number(tokenInfo?.marketCap ?? tokenInfo?.mcapUsd ?? tokenInfo?.marketcapUsd ?? tokenInfo?.marketCapUsd ?? 0) || 0;
+
+  const socials = useMemo(
+    () =>
+      SOCIALS.map(({ key, Icon }) => ({
+        key,
+        Icon,
+        href: ensureHttp((tokenInfo as any)?.[key]),
+      })).filter((s) => s.href),
+    [tokenInfo],
+  );
+
+  /* ── Stat grid ── */
+  const StatGrid = () => (
+    <div className="grid grid-cols-2 gap-3">
+      <StatCard
+        label="Contract"
+        value={addr ? formatAddressV2(addr) : '—'}
+        link={addr ? explorerUrl(addr) : undefined}
+        copyValue={addr}
+      />
+      <StatCard
+        label="Deployer"
+        value={tokenInfo?.creatorAddress ? shortenAddress(tokenInfo.creatorAddress) : '—'}
+        link={tokenInfo?.creatorAddress ? explorerUrl(tokenInfo.creatorAddress) : undefined}
+        copyValue={tokenInfo?.creatorAddress}
+      />
+      <StatCard
+        label="Created"
+        value={tokenInfo?.createdAt ? formatTimestamp(tokenInfo.createdAt as any) : '—'}
+      />
+      <StatCard
+        label="Market Cap"
+        value={marketCap > 0 ? `$${fmtNum(marketCap, 2)}` : '—'}
+      />
+    </div>
+  );
+
+  if (!showHeader) return <StatGrid />;
+
+  return (
+    <div className="space-y-4">
+      {/* ── Header: Logo + Name + Socials ── */}
+      <div className="flex items-start gap-4">
+        {/* Logo */}
+        <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 rounded-xl overflow-hidden bg-[var(--card2)]">
+          <Image src={logo} alt={name} fill className="object-cover" sizes="80px" />
+        </div>
+
+        {/* Name & meta */}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg sm:text-xl font-bold text-white truncate">{name}</h1>
+          {tokenInfo?.symbol && (
+            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[var(--primary)]/15 text-[var(--primary)]">
+              ${tokenInfo.symbol}
+            </span>
+          )}
+
+          {/* Social links inline */}
+          {socials.length > 0 && (
+            <div className="flex gap-2.5 mt-2.5">
+              {socials.map(({ key, Icon, href }) => (
+                <a
+                  key={key}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-500 hover:text-[var(--primary)] transition-colors"
+                >
+                  <Icon size={16} />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Description ── */}
+      {description && (
+        <div className="text-sm text-gray-400 leading-relaxed">
+          <p>
+            {showFullDesc || !needsTruncation
+              ? description
+              : `${description.slice(0, 120)}...`}
+          </p>
+          {needsTruncation && (
+            <button
+              type="button"
+              onClick={() => setShowFullDesc((p) => !p)}
+              className="mt-1 text-xs text-[var(--primary)] hover:underline flex items-center gap-0.5"
+            >
+              {showFullDesc ? (
+                <>Show less <ChevronUp size={12} /></>
+              ) : (
+                <>Read more <ChevronDown size={12} /></>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Progress to DEX ── */}
+      <div className="bg-[var(--card2)] p-3.5 rounded-xl border border-[var(--card-border)]">
+        <div className="flex justify-between text-sm mb-2">
+          <span className="text-gray-400 font-medium">Progress to DEX</span>
+          <span className="text-white font-semibold tabular-nums">
+            {progressPct % 1 === 0 ? `${progressPct}%` : `${progressPct.toFixed(2)}%`}
+          </span>
+        </div>
+        <div className="w-full bg-[var(--card-border)]/40 rounded-full h-2 overflow-hidden">
+          <div
+            className="h-2 rounded-full transition-all duration-700 ease-out"
+            style={{
+              width: `${Math.max(progressPct, 1)}%`,
+              backgroundImage: 'linear-gradient(90deg, var(--primary), var(--accent))',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* ── Stats ── */}
+      <StatGrid />
+    </div>
+  );
+};
+
+/* ── Stat Card sub-component ── */
+const StatCard: React.FC<{
+  label: string;
+  value?: string;
+  link?: string;
+  copyValue?: string;
+}> = ({ label, value, link, copyValue }) => (
+  <div className="bg-[var(--card2)] p-3 rounded-xl border border-[var(--card-border)]">
+    <div className="text-[11px] text-gray-500 mb-1 uppercase tracking-wide">{label}</div>
+    <div className="text-sm text-white flex items-center gap-1.5 min-w-0">
+      {link ? (
+        <>
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-[var(--primary)] transition-colors flex items-center gap-1 truncate"
+          >
+            <span className="truncate">{value}</span>
+            <ExternalLink size={11} className="flex-shrink-0 opacity-50" />
+          </a>
+          {copyValue && (
+            <button
+              onClick={() => copyToClipboard(copyValue)}
+              className="text-gray-500 hover:text-[var(--primary)] transition-colors flex-shrink-0"
+              title="Copy"
+              type="button"
+            >
+              <Copy size={11} />
+            </button>
+          )}
+        </>
+      ) : (
+        <span className="truncate">{value}</span>
+      )}
+    </div>
+  </div>
+);
 
 export default TokenInfo;

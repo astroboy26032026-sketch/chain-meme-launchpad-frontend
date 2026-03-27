@@ -19,9 +19,10 @@ export function useTokenDetail(initialTokenInfo: Token | null) {
   }, [address]);
 
   const [tokenInfo, setTokenInfo] = useState<Token | null>(initialTokenInfo);
+  const [tokenError, setTokenError] = useState<string | null>(null);
   const [liquidityEvents, setLiquidityEvents] = useState<any[]>([]);
 
-  // holders
+  // Holders state
   const [holdersAll, setHoldersAll] = useState<TokenHolder[]>([]);
   const [holdersNextCursor, setHoldersNextCursor] = useState<string | null>(null);
   const [holdersLoading, setHoldersLoading] = useState(false);
@@ -31,31 +32,36 @@ export function useTokenDetail(initialTokenInfo: Token | null) {
   const [refreshCounter, setRefreshCounter] = useState(0);
   const refresh = useCallback(() => setRefreshCounter((c) => c + 1), []);
 
-  // Race condition guard
-  const reqIdRef = useRef(0);
+  // Separate race-condition guards per fetch to avoid cross-interference
+  const infoReqRef = useRef(0);
+  const liqReqRef = useRef(0);
+  const holdersReqRef = useRef(0);
 
   const fetchTokenInfo = useCallback(async () => {
     if (!tokenAddr) return;
-    const myReq = ++reqIdRef.current;
+    const myReq = ++infoReqRef.current;
+    setTokenError(null);
     try {
       const info = await getTokenInfo(tokenAddr);
-      if (myReq !== reqIdRef.current) return;
-      setTokenInfo(info as any);
-    } catch (e) {
+      if (myReq !== infoReqRef.current) return;
+      setTokenInfo(info as unknown as Token);
+    } catch (e: any) {
       console.error('Error fetching /token/info:', e);
+      if (myReq !== infoReqRef.current) return;
+      setTokenError(e?.message || 'Failed to load token');
     }
   }, [tokenAddr]);
 
   const fetchLiquidity = useCallback(async () => {
     if (!tokenAddr) return;
-    const myReq = ++reqIdRef.current;
+    const myReq = ++liqReqRef.current;
     try {
       const lq = await getTokenLiquidity(tokenAddr);
-      if (myReq !== reqIdRef.current) return;
+      if (myReq !== liqReqRef.current) return;
       setLiquidityEvents(lq?.events ?? []);
     } catch (e) {
       console.error('Error fetching /token/liquidity:', e);
-      if (myReq !== reqIdRef.current) return;
+      if (myReq !== liqReqRef.current) return;
       setLiquidityEvents([]);
     }
   }, [tokenAddr]);
@@ -64,34 +70,42 @@ export function useTokenDetail(initialTokenInfo: Token | null) {
     async (opts?: { reset?: boolean }) => {
       if (!tokenAddr) return;
       const reset = !!opts?.reset;
-      const cursor = reset ? null : holdersNextCursor;
-      if (!reset && cursor === null) return;
+      const cursorVal = reset ? null : holdersNextCursor;
+      if (!reset && cursorVal === null) return;
 
       setHoldersLoading(true);
       setHoldersError(null);
 
+      const myReq = ++holdersReqRef.current;
+
       try {
-        const res = await getTokenHolders(tokenAddr, { limit: 200, cursor });
+        const res = await getTokenHolders(tokenAddr, { limit: 200, cursor: cursorVal });
+        if (myReq !== holdersReqRef.current) return;
         const incoming = Array.isArray(res?.holders) ? res.holders : [];
         setHoldersNextCursor(res?.nextCursor ?? null);
         setHoldersAll((prev) => (reset ? incoming : [...prev, ...incoming]));
       } catch (e: any) {
         console.error('Error fetching /token/holders:', e);
+        if (myReq !== holdersReqRef.current) return;
         setHoldersError(e?.message || 'Failed to load holders');
         if (reset) {
           setHoldersAll([]);
           setHoldersNextCursor(null);
         }
       } finally {
-        setHoldersLoading(false);
+        if (myReq === holdersReqRef.current) {
+          setHoldersLoading(false);
+        }
       }
     },
-    [tokenAddr, holdersNextCursor]
+    [tokenAddr, holdersNextCursor],
   );
 
-  // Initial fetch when token changes
+  // Fetch when token changes
   useEffect(() => {
     if (!tokenAddr) return;
+    setTokenInfo(null);
+    setTokenError(null);
     setCurrentPage(1);
     setHoldersAll([]);
     setHoldersNextCursor(null);
@@ -101,17 +115,17 @@ export function useTokenDetail(initialTokenInfo: Token | null) {
     fetchHolders({ reset: true });
   }, [tokenAddr, fetchTokenInfo, fetchLiquidity, fetchHolders]);
 
-  const tokenSymbol = String((tokenInfo as any)?.symbol ?? '').trim();
+  const tokenSymbol = String(tokenInfo?.symbol ?? '').trim();
 
   const decimals = useMemo(() => {
     const d = Number((tokenInfo as any)?.decimals ?? 9);
-    const clamped = Math.min(Math.max(Math.trunc(Number.isFinite(d) ? d : 9), 0), 18);
-    return clamped;
+    return Math.min(Math.max(Math.trunc(Number.isFinite(d) ? d : 9), 0), 18);
   }, [tokenInfo]);
 
   return {
     tokenAddr,
     tokenInfo,
+    tokenError,
     tokenSymbol,
     decimals,
     liquidityEvents,

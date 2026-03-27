@@ -20,12 +20,19 @@ import {
   sleep,
   normalizeTrackingEndpoint,
   parseNumberInput,
-  toBaseUnitsString,
   estimateTokensFromSol,
   estimateSolFromTokens,
   POLL_INTERVAL_MS,
   POLL_MAX_TRIES,
 } from '@/utils/tradingHelpers';
+
+interface UseSwapTradingParams {
+  tokenAddr: string | undefined;
+  tokenInfo: Token | null;
+  decimals: number;
+  fetchLiquidity: () => Promise<void>;
+  onTradeSuccess: () => void;
+}
 
 export function useSwapTrading({
   tokenAddr,
@@ -33,13 +40,7 @@ export function useSwapTrading({
   decimals,
   fetchLiquidity,
   onTradeSuccess,
-}: {
-  tokenAddr: string | undefined;
-  tokenInfo: Token | null;
-  decimals: number;
-  fetchLiquidity: () => Promise<void>;
-  onTradeSuccess: () => void;
-}) {
+}: UseSwapTradingParams) {
   const wallet = useWallet();
   const { connection } = useConnection();
 
@@ -53,7 +54,7 @@ export function useSwapTrading({
   const [tokenBalance, setTokenBalance] = useState('0.000');
   const balanceTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Fetch real balances
+  // Fetch real balances from Solana RPC
   useEffect(() => {
     const fetchBalances = async () => {
       if (!wallet?.publicKey || !connection) return;
@@ -83,7 +84,7 @@ export function useSwapTrading({
     return () => clearInterval(balanceTimerRef.current);
   }, [wallet?.publicKey, connection, tokenAddr]);
 
-  // settings
+  // Settings
   const [antiMEV, setAntiMEV] = useState(false);
   const [txSpeed, setTxSpeed] = useState<'auto' | 'manual'>('auto');
   const [priorityFee, setPriorityFee] = useState('0.002');
@@ -104,7 +105,7 @@ export function useSwapTrading({
   // Sync symbols when tokenInfo ready
   useEffect(() => {
     if (!tokenInfo) return;
-    const sym = String((tokenInfo as any)?.symbol ?? '').trim() || 'TOKEN';
+    const sym = String(tokenInfo.symbol ?? '').trim() || 'TOKEN';
     if (!isSwapped) {
       setFromToken((prev) => ({ ...prev, symbol: 'SOL' }));
       setToToken((prev) => ({ ...prev, symbol: sym }));
@@ -114,7 +115,7 @@ export function useSwapTrading({
     }
   }, [tokenInfo, isSwapped]);
 
-  // Preview estimation
+  // Preview estimation (debounced)
   useEffect(() => {
     let cancelled = false;
 
@@ -178,8 +179,7 @@ export function useSwapTrading({
       try {
         const st = (await getTradingStatus(statusEndpoint)) as TradingTxStatusResponse;
         const s = String((st as any)?.status ?? '').toUpperCase();
-        if (s === 'CONFIRMED') return st;
-        if (s === 'FAILED') return st;
+        if (s === 'CONFIRMED' || s === 'FAILED') return st;
       } catch { /* ignore transient */ }
       await sleep(POLL_INTERVAL_MS);
     }
@@ -213,27 +213,23 @@ export function useSwapTrading({
       const idk = newIdempotencyKey(isSwapped ? 'sell' : 'buy');
 
       let quote: any;
-      let txId: string;
 
       if (!isSwapped) {
-        // Preview to get estimated token amount (human-readable)
         const pv = await estimateTokensFromSol({ tokenAddr, solIn: inNum });
-        // BE expects integer token amount as numeric string (e.g. "1000")
         const amountInToken = Math.floor(pv.tokenOutHuman).toFixed(0);
         if (!amountInToken || amountInToken === '0') throw new Error('Amount too small');
 
         quote = (await buyToken(
           { tokenAddress: tokenAddr, amountInToken, slippageBps },
-          { idempotencyKey: idk }
+          { idempotencyKey: idk },
         )) as TradingBuyResponse;
       } else {
-        // BE expects integer token amount as numeric string (e.g. "1000")
         const amountInToken = Math.floor(inNum).toFixed(0);
         if (!amountInToken || amountInToken === '0') throw new Error('Amount too small');
 
         quote = await sellToken(
           { tokenAddress: tokenAddr, amountInToken, slippageBps },
-          { idempotencyKey: idk }
+          { idempotencyKey: idk },
         );
       }
 
@@ -244,11 +240,11 @@ export function useSwapTrading({
       const statusEp = normalizeTrackingEndpoint(statusEpRaw);
 
       if (!quote?.txBase64 || !submitEp) {
-        throw new Error('Invalid trade response (missing txBase64/tracking.submitSignatureEndpoint)');
+        throw new Error('Invalid trade response (missing txBase64/tracking)');
       }
 
-      txId = String(quote?.transactionId ?? quote?.id ?? '').trim();
-      if (!txId) throw new Error('Missing transactionId/id from trade quote');
+      const txId = String(quote?.transactionId ?? quote?.id ?? '').trim();
+      if (!txId) throw new Error('Missing transactionId from trade quote');
 
       const rawTx = Buffer.from(String(quote.txBase64), 'base64');
       const tx = VersionedTransaction.deserialize(rawTx);
@@ -259,30 +255,30 @@ export function useSwapTrading({
         preflightCommitment: 'processed',
       });
 
-      toastSuccess('Submitting signature to backend...');
+      toastSuccess('Submitting signature...');
       await submitSignature(submitEp, { id: txId, txSignature } as any);
 
       connection.confirmTransaction(txSignature, 'processed').catch(() => {});
 
       if (!statusEp) {
-        toastSuccess('Submitted (no status endpoint).');
+        toastSuccess('Transaction submitted successfully');
         onTradeSuccess();
         fetchLiquidity();
         return;
       }
 
-      toastSuccess('Checking backend status...');
+      toastSuccess('Confirming transaction...');
       const st = await pollStatus(statusEp);
       const finalStatus = String((st as any)?.status ?? '').toUpperCase();
 
       if (finalStatus === 'CONFIRMED') {
-        toastSuccess(isSwapped ? 'Sell confirmed' : 'Buy confirmed');
+        toastSuccess(isSwapped ? 'Sell confirmed!' : 'Buy confirmed!');
         onTradeSuccess();
         fetchLiquidity();
       } else if (finalStatus === 'FAILED') {
         toastError(`Trade failed${(st as any)?.error ? `: ${(st as any).error}` : ''}`);
       } else {
-        toastSuccess('Submitted. Status pending.');
+        toastSuccess('Transaction submitted — status pending');
       }
     } catch (e: any) {
       console.error('Trade flow error:', e);

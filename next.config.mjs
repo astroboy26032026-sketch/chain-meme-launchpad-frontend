@@ -31,7 +31,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https:",
-              "connect-src 'self' https://chain-meme-launchpad-backend.onrender.com https://dev.pumpfunclone2025.win wss://dev.pumpfunclone2025.win https://pumpfunclone2025.win https://ipfs-chainsafe.dev",
+              "connect-src 'self' https://chain-meme-launchpad-backend.onrender.com https://dev.pumpfunclone2025.win wss://dev.pumpfunclone2025.win https://pumpfunclone2025.win https://ipfs-chainsafe.dev https://api.devnet.solana.com https://api.mainnet-beta.solana.com https://api.testnet.solana.com wss://api.devnet.solana.com wss://api.mainnet-beta.solana.com https://dev.cosmox.app",
               "frame-ancestors 'none'",
             ].join('; '),
           },

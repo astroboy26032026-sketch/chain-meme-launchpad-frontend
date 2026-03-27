@@ -1,6 +1,5 @@
 // src/pages/token/[address].tsx — Token detail page (client-side rendered)
-import React from 'react';
-import { Tab } from '@headlessui/react';
+import React, { useState } from 'react';
 
 import Layout from '@/components/layout/Layout';
 import SEO from '@/components/seo/SEO';
@@ -19,10 +18,19 @@ import { useTokenDetail } from '@/hooks/useTokenDetail';
 import { COMMON } from '@/constants/ui-text';
 import { useSwapTrading } from '@/hooks/useSwapTrading';
 
+type TabKey = 'trades' | 'chat' | 'holders';
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'trades', label: 'Trades' },
+  { key: 'chat', label: 'Chat' },
+  { key: 'holders', label: 'Holders' },
+];
+
 const TokenDetail: React.FC = () => {
   const {
     tokenAddr,
     tokenInfo,
+    tokenError,
     tokenSymbol,
     decimals,
     liquidityEvents,
@@ -46,26 +54,42 @@ const TokenDetail: React.FC = () => {
     onTradeSuccess: refresh,
   });
 
+  const [activeTab, setActiveTab] = useState<TabKey>('trades');
+
+  /* ── Loading skeleton or error ── */
   if (!tokenInfo) {
     return (
       <Layout>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">
-            {/* Left skeleton */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="h-6 w-48 bg-[var(--card)] rounded-lg" />
-              <div className="h-[400px] bg-[var(--card)] rounded-2xl border border-[var(--card-border)]" />
-              <div className="h-[300px] bg-[var(--card)] rounded-2xl border border-[var(--card-border)]" />
+          {tokenError ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <p className="text-red-400 text-sm">{tokenError}</p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 rounded-lg text-sm border border-[var(--card-border)] bg-[var(--card)] hover:bg-[var(--card-hover)] transition-colors"
+              >
+                Retry
+              </button>
             </div>
-            {/* Right skeleton */}
-            <div className="space-y-4">
-              <div className="h-[200px] bg-[var(--card)] rounded-2xl border border-[var(--card-border)]" />
-              <div className="h-[250px] bg-[var(--card)] rounded-2xl border border-[var(--card-border)]" />
-            </div>
-          </div>
-          <div className="flex justify-center mt-8">
-            <SpaceLoader size="medium" label="Loading token data..." />
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 animate-pulse">
+                <div className="space-y-4">
+                  <div className="h-6 w-48 bg-[var(--card)] rounded-lg" />
+                  <div className="h-[420px] bg-[var(--card)] rounded-2xl border border-[var(--card-border)]" />
+                  <div className="h-[300px] bg-[var(--card)] rounded-2xl border border-[var(--card-border)]" />
+                </div>
+                <div className="space-y-4">
+                  <div className="h-[220px] bg-[var(--card)] rounded-2xl border border-[var(--card-border)]" />
+                  <div className="h-[280px] bg-[var(--card)] rounded-2xl border border-[var(--card-border)]" />
+                </div>
+              </div>
+              <div className="flex justify-center mt-8">
+                <SpaceLoader size="medium" label="Loading token data..." />
+              </div>
+            </>
+          )}
         </div>
       </Layout>
     );
@@ -91,80 +115,87 @@ const TokenDetail: React.FC = () => {
 
   return (
     <Layout>
-      <SEO token={tokenInfo as any} />
+      <SEO token={tokenInfo} />
 
-      {/* Mobile TokenInfo */}
-      <div className="lg:hidden mb-6 space-y-4">
-        <TokenInfo
-          tokenInfo={tokenInfo as any}
-          showHeader={true}
-          refreshTrigger={refreshCounter}
-          liquidityEvents={liquidityEvents}
-        />
-      </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-          {/* Left column */}
-          <div className="lg:col-span-2 flex flex-col gap-6">
-            {/* Mobile Swap — before chart */}
-            <div className="lg:hidden">
-              <SwapPanel {...swapPanelProps} />
+        {/* ══ MOBILE: Token Info + Swap above chart ══ */}
+        <div className="lg:hidden space-y-4 mb-4">
+          <TokenInfo
+            tokenInfo={tokenInfo}
+            showHeader
+            refreshTrigger={refreshCounter}
+            liquidityEvents={liquidityEvents}
+          />
+          <SwapPanel {...swapPanelProps} />
+        </div>
+
+        {/* ══ MAIN GRID ══ */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
+
+          {/* ── Left column: Chart + Tabs ── */}
+          <div className="flex flex-col gap-5 min-w-0">
+
+            {/* Chart header */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[var(--foreground)] opacity-70 truncate">
+                {tokenInfo.name || tokenInfo.symbol}
+              </h2>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-semibold text-gray-300 truncate">
-                  {(tokenInfo as any).name || (tokenInfo as any).symbol}
-                </h2>
+            {/* Chart */}
+            <TradingViewChart liquidityEvents={liquidityEvents} tokenInfo={tokenInfo} />
+
+            {/* ── Tab Section ── */}
+            <div className="card gradient-border p-4 flex-1">
+              {/* Tab bar */}
+              <div className="flex bg-[var(--card2)] rounded-xl p-1 mb-4">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                      activeTab === tab.key
+                        ? 'text-white shadow-sm'
+                        : 'text-gray-400 hover:text-gray-200'
+                    }`}
+                    style={
+                      activeTab === tab.key
+                        ? { backgroundImage: 'linear-gradient(135deg, var(--primary), var(--accent))' }
+                        : undefined
+                    }
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
-              <TradingViewChart liquidityEvents={liquidityEvents} tokenInfo={tokenInfo as any} />
-            </div>
 
-            {/* Trades / Chat / Holders — flex-1 to match right column height */}
-            <div className="card gradient-border p-4 lg:flex-1">
-              <Tab.Group>
-                <Tab.List className="flex bg-[var(--card)] rounded-xl p-1 mb-4">
-                  {['Trades', 'Chat', 'Holders'].map((t) => (
-                    <Tab key={t} as={React.Fragment}>
-                      {({ selected }) => (
-                        <button
-                          type="button"
-                          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                            selected
-                              ? 'text-white shadow-sm'
-                              : 'text-gray-400 hover:text-gray-200'
-                          }`}
-                          style={selected ? { backgroundImage: 'linear-gradient(135deg, var(--primary), var(--accent))' } : undefined}
-                        >
-                          {t}
-                        </button>
-                      )}
-                    </Tab>
-                  ))}
-                </Tab.List>
+              {/* Tab content */}
+              <div className="min-h-[300px]">
+                {activeTab === 'trades' && (
+                  <TransactionHistory tokenAddress={tokenAddr!} />
+                )}
 
-                <Tab.Panels>
-                  <Tab.Panel>
-                    <TransactionHistory tokenAddress={tokenAddr as string} />
-                  </Tab.Panel>
+                {activeTab === 'chat' && (
+                  <Chats tokenAddress={tokenAddr!} tokenInfo={tokenInfo as any} />
+                )}
 
-                  <Tab.Panel>
-                    <Chats tokenAddress={tokenAddr as string} tokenInfo={tokenInfo as any} />
-                  </Tab.Panel>
-
-                  <Tab.Panel>
+                {activeTab === 'holders' && (
+                  <>
                     {holdersError && (
-                      <div className="mb-3 text-sm text-red-400">Failed to load holders: {holdersError}</div>
+                      <div className="mb-3 px-1 text-sm text-red-400">
+                        Failed to load holders: {holdersError}
+                      </div>
                     )}
 
                     <TokenHolders
                       tokenHolders={[]}
                       currentPage={currentPage}
                       totalPages={1}
-                      creatorAddress={(tokenInfo as any).creatorAddress}
-                      tokenAddress={tokenAddr as string}
-                      onPageChange={(pageNumber: number) => setCurrentPage(pageNumber)}
+                      creatorAddress={tokenInfo.creatorAddress ?? ''}
+                      tokenAddress={tokenAddr!}
+                      onPageChange={setCurrentPage}
                       allHolders={holdersAll}
                     />
 
@@ -174,36 +205,37 @@ const TokenDetail: React.FC = () => {
                           type="button"
                           onClick={() => fetchHolders({ reset: false })}
                           disabled={holdersLoading}
-                          className="px-5 py-3 rounded-xl border border-[var(--card-border)] bg-[var(--card)] hover:shadow disabled:opacity-50"
+                          className="px-5 py-2.5 rounded-xl text-sm border border-[var(--card-border)] bg-[var(--card)] hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50"
                         >
                           {holdersLoading ? COMMON.LOADING : COMMON.LOAD_MORE}
                         </button>
                       )}
                       {!holdersNextCursor && holdersAll.length > 0 && (
-                        <div className="text-sm text-gray-400">All holders loaded</div>
+                        <p className="text-xs text-gray-500">All holders loaded</p>
                       )}
                     </div>
-                  </Tab.Panel>
-                </Tab.Panels>
-              </Tab.Group>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Right column */}
-          <div className="hidden lg:flex lg:flex-col gap-6">
-            <div className="card gradient-border p-4 space-y-4">
+          {/* ── Right column (desktop): Info + Swap ── */}
+          <div className="hidden lg:flex lg:flex-col gap-5">
+            <div className="card gradient-border p-5 space-y-5 sticky top-4">
               <TokenInfo
-                tokenInfo={tokenInfo as any}
-                showHeader={true}
+                tokenInfo={tokenInfo}
+                showHeader
                 refreshTrigger={refreshCounter}
                 liquidityEvents={liquidityEvents}
               />
+              <div className="border-t border-[var(--card-border)]" />
               <SwapPanel {...swapPanelProps} />
             </div>
           </div>
         </div>
 
-        <ShareButton tokenInfo={tokenInfo as any} />
+        <ShareButton tokenInfo={tokenInfo} />
       </div>
     </Layout>
   );
