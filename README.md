@@ -77,15 +77,15 @@ CosmoX is a **Solana-based token launchpad** (similar to Pump.fun), designed as 
 # Install frontend
 npm install
 
-# Install mock API
-cd mock-api-server && npm install && cd ..
-```
+# Install backend
+https://github.com/astroboy26032026-sketch/e-commerce-backend
+
 
 ### Development
 
 ```bash
-# Terminal 1 — Mock API (http://localhost:4000)
-cd mock-api-server && npm run dev
+# Terminal 1 — Backend (http://localhost:4000)
+npm run dev
 
 # Terminal 2 — Frontend (http://localhost:3000)
 npm run dev
